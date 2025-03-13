@@ -958,21 +958,6 @@ function drawGame() {
             ctx.fillRect(-headSize/6, headSize/4 - headSize/12, headSize/3, headSize/6);
         }
         
-        // Draw tongue occasionally
-        if (Math.random() < 0.3) { // 30% chance each frame
-            const tongueLength = gridSize/2 + 5;
-            const tongueWidth = gridSize/8;
-            
-            ctx.fillStyle = '#FF1744';
-            ctx.beginPath();
-            ctx.moveTo(headSize/2, 0);
-            ctx.lineTo(headSize/2 + tongueLength, -tongueWidth);
-            ctx.lineTo(headSize/2 + tongueLength - 3, 0);
-            ctx.lineTo(headSize/2 + tongueLength, tongueWidth);
-            ctx.closePath();
-            ctx.fill();
-        }
-        
         ctx.restore();
     }
     
