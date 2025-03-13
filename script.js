@@ -13,6 +13,7 @@ const speedOptions = {
 };
 let appleCount = 1; // Default number of apples
 let movingApples = false; // Whether apples move around
+let backgroundColor = '#e8f5e9'; // Default background color
 
 // Game elements
 let snake = [];
@@ -22,20 +23,36 @@ let highScore = localStorage.getItem('highScore') || 0; // Load high score from 
 let lastFrameTime = 0; // For frame-independent movement
 const FPS = 60; // Target frames per second
 
+// Snake colors
+const snakeColorOptions = [
+    { base: '#2E7D32', scales: '#1B5E20', head: '#1B5E20' }, // Green
+    { base: '#D32F2F', scales: '#B71C1C', head: '#B71C1C' }, // Red
+    { base: '#1976D2', scales: '#0D47A1', head: '#0D47A1' }, // Blue
+    { base: '#FFA000', scales: '#FF6F00', head: '#FF6F00' }, // Orange
+    { base: '#7B1FA2', scales: '#4A148C', head: '#4A148C' }, // Purple
+    { base: '#FF5722', scales: '#E64A19', head: '#E64A19' }, // Deep Orange
+    { base: '#FFC107', scales: '#FFA000', head: '#FFA000' }, // Amber
+    { base: '#00BCD4', scales: '#0097A7', head: '#0097A7' }  // Cyan
+];
+let currentSnakeColorIndex = 0;
+
 // Create snake texture images
 function createSnakeTextures() {
+    // Get current snake color
+    const currentColor = snakeColorOptions[currentSnakeColorIndex];
+    
     // Create snake skin texture
     const snakeSkinCanvas = document.createElement('canvas');
     snakeSkinCanvas.width = 100;
     snakeSkinCanvas.height = 100;
     const skinCtx = snakeSkinCanvas.getContext('2d');
     
-    // Create a green snake skin pattern with scales
-    skinCtx.fillStyle = '#2E7D32';
+    // Create a snake skin pattern with scales using the current color
+    skinCtx.fillStyle = currentColor.base;
     skinCtx.fillRect(0, 0, 100, 100);
     
     // Add scale pattern
-    skinCtx.fillStyle = '#1B5E20';
+    skinCtx.fillStyle = currentColor.scales;
     
     // Draw diamond pattern scales
     for (let y = 0; y < 100; y += 10) {
@@ -71,7 +88,7 @@ function createSnakeTextures() {
     const headCtx = snakeHeadCanvas.getContext('2d');
     
     // Draw triangular head shape
-    headCtx.fillStyle = '#1B5E20';
+    headCtx.fillStyle = currentColor.head;
     headCtx.beginPath();
     headCtx.moveTo(50, 25);
     headCtx.lineTo(5, 5);
@@ -126,6 +143,10 @@ function initGame() {
     lastYVelocity = 0;
     gameOver = false;
     
+    // Reset snake color to the default (green)
+    currentSnakeColorIndex = 0;
+    createSnakeTextures();
+    
     // Get the apple count from input
     appleCount = parseInt(document.getElementById('apple-count').value);
     // Ensure it's within valid range
@@ -138,6 +159,9 @@ function initGame() {
     // Get speed from selector
     const speedSetting = document.getElementById('speed-select').value;
     speed = speedOptions[speedSetting];
+    
+    // Get background color
+    backgroundColor = document.getElementById('bg-color').value || '#e8f5e9';
     
     // Create initial snake (3 segments)
     snake[0] = { x: 10, y: 10 };
@@ -360,9 +384,9 @@ function updateGame() {
     // Check for food collision with any of the apples
     let foodEaten = false;
     for (let i = 0; i < foods.length; i++) {
-        // For moving apples, use the grid cell they're currently in
-        const foodX = Math.floor(movingApples ? foods[i].xFrac : foods[i].x);
-        const foodY = Math.floor(movingApples ? foods[i].yFrac : foods[i].y);
+        // For both moving and stationary apples, use the grid cell they're currently in
+        const foodX = Math.floor(foods[i].xFrac);
+        const foodY = Math.floor(foods[i].yFrac);
         
         if (headX === foodX && headY === foodY) {
             // Remove the eaten food
@@ -378,6 +402,10 @@ function updateGame() {
                 localStorage.setItem('highScore', highScore);
                 document.getElementById('high-score').textContent = highScore;
             }
+            
+            // Change snake color
+            currentSnakeColorIndex = (currentSnakeColorIndex + 1) % snakeColorOptions.length;
+            createSnakeTextures();
             
             // Always place a new food immediately when one is eaten
             placeFood(1); // Place exactly one new food
@@ -400,12 +428,13 @@ function updateGame() {
 
 // Draw game elements
 function drawGame() {
-    // Clear canvas
-    ctx.fillStyle = '#e8f5e9';
+    // Clear canvas with selected background color
+    ctx.fillStyle = backgroundColor;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
-    // Draw grid lines
-    ctx.strokeStyle = '#d0e8d0';
+    // Draw grid lines with slightly darker shade of the background
+    const gridColor = adjustColor(backgroundColor, -20);
+    ctx.strokeStyle = gridColor;
     ctx.lineWidth = 1;
     
     // Vertical lines
@@ -651,6 +680,25 @@ function drawGame() {
         
         gameRunning = false;
     }
+}
+
+// Helper function to adjust a color's brightness
+function adjustColor(color, amount) {
+    // Remove the # if present
+    color = color.replace('#', '');
+    
+    // Parse the color
+    let r = parseInt(color.substring(0, 2), 16);
+    let g = parseInt(color.substring(2, 4), 16);
+    let b = parseInt(color.substring(4, 6), 16);
+    
+    // Adjust each component
+    r = Math.max(0, Math.min(255, r + amount));
+    g = Math.max(0, Math.min(255, g + amount));
+    b = Math.max(0, Math.min(255, b + amount));
+    
+    // Convert back to hex
+    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 }
 
 // Event Listeners
