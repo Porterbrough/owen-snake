@@ -25,10 +25,14 @@ You can play the game in two ways:
 - Responsive design works on both desktop and mobile
 - Touch controls for mobile devices
 - Visual grid for better navigation
-- Snake eyes that change direction with movement
-- Score tracking
+- Realistic snake with connected body segments
+- Customizable number of apples (1-10)
+- High score tracking with local storage
+- Realistic apples with stems and leaves
+- Snake eyes with pupils that follow movement direction
+- Random animated forked tongue
 - Increasing difficulty (snake speeds up as you earn points)
-- Game over screen with final score
+- Enhanced game over screen with high score display
 
 ## Development
 
