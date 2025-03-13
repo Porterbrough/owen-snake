@@ -5,7 +5,12 @@ const ctx = canvas.getContext('2d');
 // Game settings
 const gridSize = 20;
 const tileCount = canvas.width / gridSize;
-let speed = 7;
+let speed = 7; // Default speed (will be set by speed selector)
+const speedOptions = {
+    slow: 5,
+    normal: 7,
+    fast: 10
+};
 let appleCount = 1; // Default number of apples
 let movingApples = false; // Whether apples move around
 
@@ -16,6 +21,90 @@ let score = 0;
 let highScore = localStorage.getItem('highScore') || 0; // Load high score from local storage
 let lastFrameTime = 0; // For frame-independent movement
 const FPS = 60; // Target frames per second
+
+// Create snake texture images
+function createSnakeTextures() {
+    // Create snake skin texture
+    const snakeSkinCanvas = document.createElement('canvas');
+    snakeSkinCanvas.width = 100;
+    snakeSkinCanvas.height = 100;
+    const skinCtx = snakeSkinCanvas.getContext('2d');
+    
+    // Create a green snake skin pattern with scales
+    skinCtx.fillStyle = '#2E7D32';
+    skinCtx.fillRect(0, 0, 100, 100);
+    
+    // Add scale pattern
+    skinCtx.fillStyle = '#1B5E20';
+    
+    // Draw diamond pattern scales
+    for (let y = 0; y < 100; y += 10) {
+        for (let x = 0; x < 100; x += 10) {
+            skinCtx.beginPath();
+            skinCtx.moveTo(x + 5, y);
+            skinCtx.lineTo(x + 10, y + 5);
+            skinCtx.lineTo(x + 5, y + 10);
+            skinCtx.lineTo(x, y + 5);
+            skinCtx.closePath();
+            skinCtx.fill();
+        }
+    }
+    
+    // Add highlight on scales
+    skinCtx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+    for (let y = 0; y < 100; y += 10) {
+        for (let x = 0; x < 100; x += 10) {
+            skinCtx.beginPath();
+            skinCtx.moveTo(x + 5, y);
+            skinCtx.lineTo(x + 7, y + 2);
+            skinCtx.lineTo(x + 5, y + 4);
+            skinCtx.lineTo(x + 3, y + 2);
+            skinCtx.closePath();
+            skinCtx.fill();
+        }
+    }
+    
+    // Create snake head texture
+    const snakeHeadCanvas = document.createElement('canvas');
+    snakeHeadCanvas.width = 50;
+    snakeHeadCanvas.height = 50;
+    const headCtx = snakeHeadCanvas.getContext('2d');
+    
+    // Draw triangular head shape
+    headCtx.fillStyle = '#1B5E20';
+    headCtx.beginPath();
+    headCtx.moveTo(50, 25);
+    headCtx.lineTo(5, 5);
+    headCtx.lineTo(5, 45);
+    headCtx.closePath();
+    headCtx.fill();
+    
+    // Draw eyes
+    headCtx.fillStyle = 'white';
+    headCtx.beginPath();
+    headCtx.arc(20, 15, 5, 0, Math.PI * 2);
+    headCtx.arc(20, 35, 5, 0, Math.PI * 2);
+    headCtx.fill();
+    
+    // Draw pupils
+    headCtx.fillStyle = 'black';
+    headCtx.beginPath();
+    headCtx.arc(22, 15, 2, 0, Math.PI * 2);
+    headCtx.arc(22, 35, 2, 0, Math.PI * 2);
+    headCtx.fill();
+    
+    // Apply textures to images
+    snakeImage.src = snakeSkinCanvas.toDataURL();
+    snakeHeadImage.src = snakeHeadCanvas.toDataURL();
+}
+
+// Snake visuals
+let snakeImage = new Image();
+let snakeHeadImage = new Image();
+createSnakeTextures();
+
+// Snake position interpolation for smooth movement
+let snakePositions = []; // Array to track intermediate positions
 
 // Direction and game state
 let xVelocity = 0;
@@ -29,6 +118,7 @@ let gameOver = false;
 function initGame() {
     // Reset variables
     snake = [];
+    snakePositions = [];
     score = 0;
     xVelocity = 0;
     yVelocity = 0;
@@ -45,10 +135,24 @@ function initGame() {
     // Check if moving apples is enabled
     movingApples = document.getElementById('moving-apples').checked;
     
+    // Get speed from selector
+    const speedSetting = document.getElementById('speed-select').value;
+    speed = speedOptions[speedSetting];
+    
     // Create initial snake (3 segments)
     snake[0] = { x: 10, y: 10 };
     snake[1] = { x: 9, y: 10 };
     snake[2] = { x: 8, y: 10 };
+    
+    // Initialize snake positions array for smooth animation
+    for (let i = 0; i < snake.length; i++) {
+        snakePositions[i] = {
+            x: snake[i].x,
+            y: snake[i].y,
+            xFrac: snake[i].x,
+            yFrac: snake[i].y
+        };
+    }
     
     // Place initial food
     placeFood();
@@ -174,9 +278,17 @@ function gameLoop(timestamp) {
         
         // Update snake position based on speed
         const updateRate = FPS / speed;
+        let updated = false;
+        
         while (gameLoop.accumulator >= updateRate) {
             updateGame();
             gameLoop.accumulator -= updateRate;
+            updated = true;
+        }
+        
+        // Update snake position interpolation for smooth movement
+        if (updated && snake.length > 0) {
+            updateSnakeInterpolation(gameLoop.accumulator / updateRate);
         }
         
         // Always draw
@@ -184,6 +296,38 @@ function gameLoop(timestamp) {
     }
     
     requestAnimationFrame(gameLoop);
+}
+
+// Update snake position interpolation for smooth movement
+function updateSnakeInterpolation(t) {
+    // If we don't have enough position data, initialize it
+    if (snakePositions.length !== snake.length) {
+        snakePositions = [];
+        for (let i = 0; i < snake.length; i++) {
+            snakePositions[i] = {
+                x: snake[i].x,
+                y: snake[i].y,
+                xFrac: snake[i].x,
+                yFrac: snake[i].y
+            };
+        }
+        return;
+    }
+    
+    // Update the target positions to match current snake positions
+    for (let i = 0; i < snake.length; i++) {
+        // Store current position as previous
+        snakePositions[i].prevX = snakePositions[i].x;
+        snakePositions[i].prevY = snakePositions[i].y;
+        
+        // Set new target position
+        snakePositions[i].x = snake[i].x;
+        snakePositions[i].y = snake[i].y;
+        
+        // Calculate fractional position for smooth movement
+        snakePositions[i].xFrac = snakePositions[i].prevX + (snakePositions[i].x - snakePositions[i].prevX) * t;
+        snakePositions[i].yFrac = snakePositions[i].prevY + (snakePositions[i].y - snakePositions[i].prevY) * t;
+    }
 }
 
 // Update game state
@@ -216,7 +360,11 @@ function updateGame() {
     // Check for food collision with any of the apples
     let foodEaten = false;
     for (let i = 0; i < foods.length; i++) {
-        if (headX === foods[i].x && headY === foods[i].y) {
+        // For moving apples, use the grid cell they're currently in
+        const foodX = Math.floor(movingApples ? foods[i].xFrac : foods[i].x);
+        const foodY = Math.floor(movingApples ? foods[i].yFrac : foods[i].y);
+        
+        if (headX === foodX && headY === foodY) {
             // Remove the eaten food
             foods.splice(i, 1);
             
@@ -234,9 +382,9 @@ function updateGame() {
             // Always place a new food immediately when one is eaten
             placeFood(1); // Place exactly one new food
             
-            // Increase speed every 5 points
-            if (score % 5 === 0 && speed < 15) {
-                speed++;
+            // Increase length of snake positions array for smooth animation
+            if (snakePositions.length > 0) {
+                snakePositions.push({...snakePositions[snakePositions.length - 1]});
             }
             
             foodEaten = true;
@@ -310,229 +458,166 @@ function drawGame() {
         ctx.fill();
     }
     
-    // Draw snake as a continuous shape
-    if (snake.length > 0) {
-        // Draw snake body first
-        ctx.fillStyle = '#2E7D32'; // Base green for snake body
+    // Draw snake with texture
+    if (snake.length > 0 && snakePositions.length > 0) {
+        // Create smooth path for the entire snake body
+        const path = new Path2D();
+        const controlPoints = [];
         
-        // Create path for the entire snake body
-        ctx.beginPath();
-        
-        // Draw body segments as a path
-        for (let i = 0; i < snake.length; i++) {
-            const segX = snake[i].x * gridSize;
-            const segY = snake[i].y * gridSize;
+        // Draw body segments as a path using interpolated positions
+        for (let i = 0; i < snakePositions.length; i++) {
+            // Use fractional positions for smooth movement
+            const segX = snakePositions[i].xFrac * gridSize;
+            const segY = snakePositions[i].yFrac * gridSize;
             
-            if (i === 0) {
-                // First segment - will be drawn separately with eyes
-                continue;
-            } else {
-                // Calculate position relative to previous segment
-                const prevX = snake[i-1].x;
-                const prevY = snake[i-1].y;
-                const currX = snake[i].x;
-                const currY = snake[i].y;
-                
-                // Draw continuous snake body section
+            // Add control points for smooth curves
+            controlPoints.push({
+                x: segX + gridSize / 2,
+                y: segY + gridSize / 2
+            });
+        }
+        
+        // Draw snake body as a spline curve
+        if (controlPoints.length >= 2) {
+            // Start the path at the head
+            path.moveTo(controlPoints[0].x, controlPoints[0].y);
+            
+            // Draw curves connecting all points
+            for (let i = 1; i < controlPoints.length; i++) {
                 if (i === 1) {
-                    // This is the segment after the head
-                    ctx.moveTo(segX + gridSize/2, segY + gridSize/2);
+                    // First segment after head - straight line
+                    path.lineTo(controlPoints[i].x, controlPoints[i].y);
                 } else {
-                    // Connect to the previous segment with curves to make it smooth
-                    const midX = (snake[i-1].x * gridSize + segX) / 2;
-                    const midY = (snake[i-1].y * gridSize + segY) / 2;
+                    // Use a smooth curve for body
+                    const prevX = controlPoints[i-1].x;
+                    const prevY = controlPoints[i-1].y;
+                    const currX = controlPoints[i].x;
+                    const currY = controlPoints[i].y;
                     
-                    if (prevX === currX) { // Vertical connection
-                        ctx.lineTo(segX + gridSize/2, segY + gridSize/2);
-                    } else if (prevY === currY) { // Horizontal connection
-                        ctx.lineTo(segX + gridSize/2, segY + gridSize/2);
-                    } else {
-                        // This is a corner - make it rounded
-                        ctx.quadraticCurveTo(
-                            snake[i-1].x * gridSize + gridSize/2, 
-                            snake[i-1].y * gridSize + gridSize/2,
-                            midX + gridSize/2, 
-                            midY + gridSize/2
-                        );
-                        ctx.lineTo(segX + gridSize/2, segY + gridSize/2);
-                    }
+                    // Use quadratic curve for smoother corners
+                    path.quadraticCurveTo(
+                        prevX,
+                        prevY,
+                        (prevX + currX) / 2,
+                        (prevY + currY) / 2
+                    );
                 }
-                
-                // Draw connected snake body segment
-                ctx.lineWidth = gridSize - 2;
-                ctx.lineCap = 'round';
-                ctx.lineJoin = 'round';
             }
         }
         
-        // Stroke the entire connected snake body
-        ctx.strokeStyle = '#2E7D32'; // Dark green
-        ctx.stroke();
+        // Calculate snake head position from interpolated data
+        const headX = snakePositions[0].xFrac * gridSize;
+        const headY = snakePositions[0].yFrac * gridSize;
         
-        // Add scale pattern to the snake body
-        for (let i = 1; i < snake.length; i++) {
-            const segX = snake[i].x * gridSize;
-            const segY = snake[i].y * gridSize;
-            
-            // Add a subtle scale pattern
-            ctx.fillStyle = '#388E3C'; // Lighter green
-            ctx.beginPath();
-            ctx.arc(segX + gridSize/2, segY + gridSize/2, gridSize/6, 0, Math.PI * 2);
-            ctx.fill();
+        // Calculate snake width based on score (grows as snake gets longer)
+        const baseWidth = gridSize - 4;
+        const maxGrowth = 8; // max extra width
+        const growthFactor = Math.min(score / 20, 1); // reach max size at score 20
+        const snakeWidth = baseWidth + (maxGrowth * growthFactor);
+        
+        // Draw snake body with texture
+        ctx.save();
+        ctx.lineWidth = snakeWidth;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        
+        // Use snake skin texture if image loaded, otherwise use a gradient
+        if (snakeImage.complete && snakeImage.naturalWidth > 0) {
+            const pattern = ctx.createPattern(snakeImage, 'repeat');
+            ctx.strokeStyle = pattern;
+        } else {
+            // Gradient as fallback
+            const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+            gradient.addColorStop(0, '#2E7D32');
+            gradient.addColorStop(0.5, '#388E3C');
+            gradient.addColorStop(1, '#2E7D32');
+            ctx.strokeStyle = gradient;
+        }
+        
+        ctx.stroke(path);
+        ctx.restore();
+        
+        // Draw snake head with rotation based on direction
+        ctx.save();
+        ctx.translate(headX + gridSize/2, headY + gridSize/2);
+        
+        // Determine head rotation based on direction
+        if (xVelocity === 1) { // Right
+            ctx.rotate(0);
+        } else if (xVelocity === -1) { // Left
+            ctx.rotate(Math.PI);
+        } else if (yVelocity === -1) { // Up
+            ctx.rotate(-Math.PI/2);
+        } else if (yVelocity === 1) { // Down
+            ctx.rotate(Math.PI/2);
         }
         
         // Draw snake head
-        const headX = snake[0].x * gridSize;
-        const headY = snake[0].y * gridSize;
+        const headSize = gridSize + (4 * growthFactor); // Head slightly larger than body
         
-        ctx.fillStyle = '#1B5E20'; // Darker green for head
-        
-        // Draw rounded snake head
-        ctx.beginPath();
-        
-        // Determine head direction
-        if (xVelocity === 1) { // Right
-            ctx.arc(
-                headX + gridSize - 2, 
-                headY + gridSize / 2, 
-                gridSize / 2, 
-                Math.PI * 0.5, 
-                Math.PI * 1.5, 
-                true
+        // Use snake head image if loaded, otherwise draw a green head
+        if (snakeHeadImage.complete && snakeHeadImage.naturalWidth > 0) {
+            ctx.drawImage(
+                snakeHeadImage, 
+                -headSize/2, 
+                -headSize/2, 
+                headSize, 
+                headSize
             );
-            ctx.fillRect(headX, headY + 1, gridSize / 2, gridSize - 2);
-        } else if (xVelocity === -1) { // Left
-            ctx.arc(
-                headX + 2, 
-                headY + gridSize / 2, 
-                gridSize / 2, 
-                Math.PI * 0.5, 
-                Math.PI * 1.5, 
-                false
-            );
-            ctx.fillRect(headX + gridSize / 2, headY + 1, gridSize / 2, gridSize - 2);
-        } else if (yVelocity === -1) { // Up
-            ctx.arc(
-                headX + gridSize / 2, 
-                headY + 2, 
-                gridSize / 2, 
-                0, 
-                Math.PI, 
-                false
-            );
-            ctx.fillRect(headX + 1, headY + gridSize / 2, gridSize - 2, gridSize / 2);
-        } else if (yVelocity === 1) { // Down
-            ctx.arc(
-                headX + gridSize / 2, 
-                headY + gridSize - 2, 
-                gridSize / 2, 
-                Math.PI, 
-                Math.PI * 2, 
-                false
-            );
-            ctx.fillRect(headX + 1, headY, gridSize - 2, gridSize / 2);
-        } else { // Default (static)
-            ctx.arc(headX + gridSize / 2, headY + gridSize / 2, gridSize / 2, 0, Math.PI * 2);
-        }
-        ctx.fill();
-        
-        // Position eyes based on direction
-        let eyeSize = gridSize / 8;
-        let eyeOffset = gridSize / 3.5;
-        let pupilSize = eyeSize / 2;
-        
-        // Default eye positions (facing right)
-        let leftEyeX = headX + gridSize - eyeOffset;
-        let leftEyeY = headY + eyeOffset;
-        let rightEyeX = headX + gridSize - eyeOffset;
-        let rightEyeY = headY + gridSize - eyeOffset;
-        
-        // Adjust eye positions based on direction
-        if (xVelocity === -1) { // Left
-            leftEyeX = headX + eyeOffset;
-            leftEyeY = headY + eyeOffset;
-            rightEyeX = headX + eyeOffset;
-            rightEyeY = headY + gridSize - eyeOffset;
-        } else if (yVelocity === -1) { // Up
-            leftEyeX = headX + eyeOffset;
-            leftEyeY = headY + eyeOffset;
-            rightEyeX = headX + gridSize - eyeOffset;
-            rightEyeY = headY + eyeOffset;
-        } else if (yVelocity === 1) { // Down
-            leftEyeX = headX + eyeOffset;
-            leftEyeY = headY + gridSize - eyeOffset;
-            rightEyeX = headX + gridSize - eyeOffset;
-            rightEyeY = headY + gridSize - eyeOffset;
-        }
-        
-        // Draw eyes (white part)
-        ctx.fillStyle = 'white';
-        ctx.beginPath();
-        ctx.arc(leftEyeX, leftEyeY, eyeSize, 0, Math.PI * 2);
-        ctx.fill();
-        
-        ctx.beginPath();
-        ctx.arc(rightEyeX, rightEyeY, eyeSize, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // Draw pupils (black part)
-        ctx.fillStyle = 'black';
-        
-        // Adjust pupil position slightly in the direction of movement
-        let pupilOffsetX = 0;
-        let pupilOffsetY = 0;
-        
-        if (xVelocity === 1) pupilOffsetX = 1;
-        if (xVelocity === -1) pupilOffsetX = -1;
-        if (yVelocity === 1) pupilOffsetY = 1;
-        if (yVelocity === -1) pupilOffsetY = -1;
-        
-        ctx.beginPath();
-        ctx.arc(leftEyeX + pupilOffsetX, leftEyeY + pupilOffsetY, pupilSize, 0, Math.PI * 2);
-        ctx.fill();
-        
-        ctx.beginPath();
-        ctx.arc(rightEyeX + pupilOffsetX, rightEyeY + pupilOffsetY, pupilSize, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // Draw forked tongue occasionally
-        if (Math.random() < 0.3) { // 30% chance each frame
-            ctx.fillStyle = '#FF1744'; // Red tongue
+        } else {
+            // Fallback head
+            ctx.fillStyle = '#1B5E20';
+            ctx.beginPath();
             
-            if (xVelocity === 1) { // Right
-                ctx.beginPath();
-                ctx.moveTo(headX + gridSize, headY + gridSize / 2);
-                ctx.lineTo(headX + gridSize + 8, headY + gridSize / 2 - 3);
-                ctx.lineTo(headX + gridSize + 6, headY + gridSize / 2);
-                ctx.lineTo(headX + gridSize + 8, headY + gridSize / 2 + 3);
-                ctx.closePath();
-                ctx.fill();
-            } else if (xVelocity === -1) { // Left
-                ctx.beginPath();
-                ctx.moveTo(headX, headY + gridSize / 2);
-                ctx.lineTo(headX - 8, headY + gridSize / 2 - 3);
-                ctx.lineTo(headX - 6, headY + gridSize / 2);
-                ctx.lineTo(headX - 8, headY + gridSize / 2 + 3);
-                ctx.closePath();
-                ctx.fill();
-            } else if (yVelocity === -1) { // Up
-                ctx.beginPath();
-                ctx.moveTo(headX + gridSize / 2, headY);
-                ctx.lineTo(headX + gridSize / 2 - 3, headY - 8);
-                ctx.lineTo(headX + gridSize / 2, headY - 6);
-                ctx.lineTo(headX + gridSize / 2 + 3, headY - 8);
-                ctx.closePath();
-                ctx.fill();
-            } else if (yVelocity === 1) { // Down
-                ctx.beginPath();
-                ctx.moveTo(headX + gridSize / 2, headY + gridSize);
-                ctx.lineTo(headX + gridSize / 2 - 3, headY + gridSize + 8);
-                ctx.lineTo(headX + gridSize / 2, headY + gridSize + 6);
-                ctx.lineTo(headX + gridSize / 2 + 3, headY + gridSize + 8);
-                ctx.closePath();
-                ctx.fill();
-            }
+            // Triangular head shape
+            ctx.moveTo(headSize/2, 0);
+            ctx.lineTo(-headSize/2, -headSize/2);
+            ctx.lineTo(-headSize/2, headSize/2);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Eyes
+            const eyeSize = headSize/6;
+            const eyeOffset = headSize/4;
+            
+            // Left eye
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.arc(0, -eyeOffset, eyeSize, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Right eye
+            ctx.beginPath();
+            ctx.arc(0, eyeOffset, eyeSize, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Pupils
+            ctx.fillStyle = 'black';
+            ctx.beginPath();
+            ctx.arc(eyeSize/2, -eyeOffset, eyeSize/2, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.beginPath();
+            ctx.arc(eyeSize/2, eyeOffset, eyeSize/2, 0, Math.PI * 2);
+            ctx.fill();
         }
+        
+        // Draw tongue occasionally
+        if (Math.random() < 0.3) { // 30% chance each frame
+            const tongueLength = gridSize/2 + 5;
+            const tongueWidth = gridSize/8;
+            
+            ctx.fillStyle = '#FF1744';
+            ctx.beginPath();
+            ctx.moveTo(headSize/2, 0);
+            ctx.lineTo(headSize/2 + tongueLength, -tongueWidth);
+            ctx.lineTo(headSize/2 + tongueLength - 3, 0);
+            ctx.lineTo(headSize/2 + tongueLength, tongueWidth);
+            ctx.closePath();
+            ctx.fill();
+        }
+        
+        ctx.restore();
     }
     
     // Draw game over message

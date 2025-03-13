@@ -89,13 +89,23 @@ canvas {
     color: #388E3C;
 }
 
-.apple-control input {
+.apple-control input[type="number"] {
     width: 50px;
     padding: 5px;
     border: 2px solid #4CAF50;
     border-radius: 4px;
     text-align: center;
     font-size: 16px;
+}
+
+.apple-control select {
+    padding: 5px;
+    border: 2px solid #4CAF50;
+    border-radius: 4px;
+    text-align: center;
+    font-size: 16px;
+    background-color: white;
+    cursor: pointer;
 }
 
 button {

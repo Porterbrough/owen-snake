@@ -27,14 +27,15 @@ You can play the game in two ways:
 - Visual grid for better navigation
 - Realistic snake with connected body segments
 - Customizable number of apples (1-10)
+- Multiple apples on screen at once (new apple appears immediately when one is eaten)
 - Option for moving apples that glide around the screen
-- New apples appear immediately when one is eaten
-- Smooth snake movement with frame-independent animation
-- High score tracking with local storage
+- Ultra-smooth snake movement with advanced interpolation
+- Speed selection (Slow, Normal, Fast)
+- Realistic snake with textured skin that grows thicker as it gets longer
+- Realistic snake head with rotating direction
 - Realistic apples with stems and leaves
-- Snake eyes with pupils that follow movement direction
-- Random animated forked tongue
-- Increasing difficulty (snake speeds up as you earn points)
+- Snake tongue animation
+- High score tracking with local storage
 - Enhanced game over screen with high score display
 
 ## Development
