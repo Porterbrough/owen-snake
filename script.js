@@ -83,10 +83,10 @@ function updateGame() {
     let headY = snake[0].y + yVelocity;
     
     // Check for wall collision
-    if (headX < 0) headX = tileCount - 1;
-    if (headX >= tileCount) headX = 0;
-    if (headY < 0) headY = tileCount - 1;
-    if (headY >= tileCount) headY = 0;
+    if (headX < 0 || headX >= tileCount || headY < 0 || headY >= tileCount) {
+        gameOver = true;
+        return;
+    }
     
     // Check for self collision
     for (let i = 1; i < snake.length; i++) {
@@ -141,73 +141,223 @@ function drawGame() {
         ctx.stroke();
     }
     
-    // Draw food
-    ctx.fillStyle = '#FF5252';
+    // Draw apple
+    const appleX = food.x * gridSize + gridSize / 2;
+    const appleY = food.y * gridSize + gridSize / 2;
+    const appleRadius = gridSize / 2 - 2;
+    
+    // Apple body
+    ctx.fillStyle = '#FF0000';
     ctx.beginPath();
-    ctx.arc(
-        food.x * gridSize + gridSize / 2,
-        food.y * gridSize + gridSize / 2,
-        gridSize / 2 - 2,
-        0,
-        Math.PI * 2
-    );
+    ctx.arc(appleX, appleY, appleRadius, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Apple stem
+    ctx.fillStyle = '#4E342E';
+    ctx.beginPath();
+    ctx.fillRect(appleX - 2, appleY - appleRadius - 3, 3, 5);
+    
+    // Apple shine
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.beginPath();
+    ctx.arc(appleX - appleRadius/3, appleY - appleRadius/3, appleRadius/4, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Apple leaf
+    ctx.fillStyle = '#4CAF50';
+    ctx.beginPath();
+    ctx.ellipse(appleX + 3, appleY - appleRadius - 1, 4, 2, Math.PI / 4, 0, Math.PI * 2);
     ctx.fill();
     
     // Draw snake
+    // Create snake pattern and colors
+    const snakePatterns = ['#2E7D32', '#388E3C']; // Dark and light green pattern
+    
+    // Draw each segment
     for (let i = 0; i < snake.length; i++) {
-        // Use different color for head
-        if (i === 0) {
-            ctx.fillStyle = '#388E3C'; // Dark green for head
-        } else {
-            ctx.fillStyle = '#4CAF50'; // Lighter green for body
+        const segX = snake[i].x * gridSize;
+        const segY = snake[i].y * gridSize;
+        
+        // Determine if this is a corner piece
+        let isCorner = false;
+        let prevSegment = null;
+        let nextSegment = null;
+        
+        if (i > 0) {
+            prevSegment = snake[i - 1];
         }
         
-        ctx.fillRect(
-            snake[i].x * gridSize + 1,
-            snake[i].y * gridSize + 1,
-            gridSize - 2,
-            gridSize - 2
-        );
+        if (i < snake.length - 1) {
+            nextSegment = snake[i + 1];
+        }
         
-        // Add eyes to the head
+        // Snake body pattern - alternating dark/light green
+        ctx.fillStyle = snakePatterns[i % 2];
+        
+        // Special treatment for head
         if (i === 0) {
-            ctx.fillStyle = 'white';
+            ctx.fillStyle = '#1B5E20'; // Darker green for head
+            
+            // Draw rounded snake head
+            ctx.beginPath();
+            
+            // Determine head direction
+            if (xVelocity === 1) { // Right
+                ctx.arc(
+                    segX + gridSize - 2, 
+                    segY + gridSize / 2, 
+                    gridSize / 2 - 1, 
+                    Math.PI * 0.5, 
+                    Math.PI * 1.5, 
+                    true
+                );
+                ctx.fillRect(segX, segY + 1, gridSize / 2, gridSize - 2);
+            } else if (xVelocity === -1) { // Left
+                ctx.arc(
+                    segX + 2, 
+                    segY + gridSize / 2, 
+                    gridSize / 2 - 1, 
+                    Math.PI * 0.5, 
+                    Math.PI * 1.5, 
+                    false
+                );
+                ctx.fillRect(segX + gridSize / 2, segY + 1, gridSize / 2, gridSize - 2);
+            } else if (yVelocity === -1) { // Up
+                ctx.arc(
+                    segX + gridSize / 2, 
+                    segY + 2, 
+                    gridSize / 2 - 1, 
+                    0, 
+                    Math.PI, 
+                    false
+                );
+                ctx.fillRect(segX + 1, segY + gridSize / 2, gridSize - 2, gridSize / 2);
+            } else if (yVelocity === 1) { // Down
+                ctx.arc(
+                    segX + gridSize / 2, 
+                    segY + gridSize - 2, 
+                    gridSize / 2 - 1, 
+                    Math.PI, 
+                    Math.PI * 2, 
+                    false
+                );
+                ctx.fillRect(segX + 1, segY, gridSize - 2, gridSize / 2);
+            } else { // Default (static)
+                ctx.fillRect(segX + 1, segY + 1, gridSize - 2, gridSize - 2);
+            }
+            ctx.fill();
             
             // Position eyes based on direction
-            let eyeSize = gridSize / 6;
-            let eyeOffset = gridSize / 4;
+            let eyeSize = gridSize / 8;
+            let eyeOffset = gridSize / 3.5;
+            let pupilSize = eyeSize / 2;
             
             // Default eye positions (facing right)
-            let leftEyeX = snake[0].x * gridSize + gridSize - eyeOffset;
-            let leftEyeY = snake[0].y * gridSize + eyeOffset;
-            let rightEyeX = snake[0].x * gridSize + gridSize - eyeOffset;
-            let rightEyeY = snake[0].y * gridSize + gridSize - eyeOffset;
+            let leftEyeX = segX + gridSize - eyeOffset;
+            let leftEyeY = segY + eyeOffset;
+            let rightEyeX = segX + gridSize - eyeOffset;
+            let rightEyeY = segY + gridSize - eyeOffset;
             
             // Adjust eye positions based on direction
             if (xVelocity === -1) { // Left
-                leftEyeX = snake[0].x * gridSize + eyeOffset;
-                leftEyeY = snake[0].y * gridSize + eyeOffset;
-                rightEyeX = snake[0].x * gridSize + eyeOffset;
-                rightEyeY = snake[0].y * gridSize + gridSize - eyeOffset;
+                leftEyeX = segX + eyeOffset;
+                leftEyeY = segY + eyeOffset;
+                rightEyeX = segX + eyeOffset;
+                rightEyeY = segY + gridSize - eyeOffset;
             } else if (yVelocity === -1) { // Up
-                leftEyeX = snake[0].x * gridSize + eyeOffset;
-                leftEyeY = snake[0].y * gridSize + eyeOffset;
-                rightEyeX = snake[0].x * gridSize + gridSize - eyeOffset;
-                rightEyeY = snake[0].y * gridSize + eyeOffset;
+                leftEyeX = segX + eyeOffset;
+                leftEyeY = segY + eyeOffset;
+                rightEyeX = segX + gridSize - eyeOffset;
+                rightEyeY = segY + eyeOffset;
             } else if (yVelocity === 1) { // Down
-                leftEyeX = snake[0].x * gridSize + eyeOffset;
-                leftEyeY = snake[0].y * gridSize + gridSize - eyeOffset;
-                rightEyeX = snake[0].x * gridSize + gridSize - eyeOffset;
-                rightEyeY = snake[0].y * gridSize + gridSize - eyeOffset;
+                leftEyeX = segX + eyeOffset;
+                leftEyeY = segY + gridSize - eyeOffset;
+                rightEyeX = segX + gridSize - eyeOffset;
+                rightEyeY = segY + gridSize - eyeOffset;
             }
             
-            // Draw eyes
+            // Draw eyes (white part)
+            ctx.fillStyle = 'white';
             ctx.beginPath();
             ctx.arc(leftEyeX, leftEyeY, eyeSize, 0, Math.PI * 2);
             ctx.fill();
             
             ctx.beginPath();
             ctx.arc(rightEyeX, rightEyeY, eyeSize, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Draw pupils (black part)
+            ctx.fillStyle = 'black';
+            
+            // Adjust pupil position slightly in the direction of movement
+            let pupilOffsetX = 0;
+            let pupilOffsetY = 0;
+            
+            if (xVelocity === 1) pupilOffsetX = 1;
+            if (xVelocity === -1) pupilOffsetX = -1;
+            if (yVelocity === 1) pupilOffsetY = 1;
+            if (yVelocity === -1) pupilOffsetY = -1;
+            
+            ctx.beginPath();
+            ctx.arc(leftEyeX + pupilOffsetX, leftEyeY + pupilOffsetY, pupilSize, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.beginPath();
+            ctx.arc(rightEyeX + pupilOffsetX, rightEyeY + pupilOffsetY, pupilSize, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Draw forked tongue occasionally
+            if (Math.random() < 0.3) { // 30% chance each frame
+                ctx.fillStyle = '#FF1744'; // Red tongue
+                
+                if (xVelocity === 1) { // Right
+                    ctx.beginPath();
+                    ctx.moveTo(segX + gridSize, segY + gridSize / 2);
+                    ctx.lineTo(segX + gridSize + 8, segY + gridSize / 2 - 3);
+                    ctx.lineTo(segX + gridSize + 6, segY + gridSize / 2);
+                    ctx.lineTo(segX + gridSize + 8, segY + gridSize / 2 + 3);
+                    ctx.closePath();
+                    ctx.fill();
+                } else if (xVelocity === -1) { // Left
+                    ctx.beginPath();
+                    ctx.moveTo(segX, segY + gridSize / 2);
+                    ctx.lineTo(segX - 8, segY + gridSize / 2 - 3);
+                    ctx.lineTo(segX - 6, segY + gridSize / 2);
+                    ctx.lineTo(segX - 8, segY + gridSize / 2 + 3);
+                    ctx.closePath();
+                    ctx.fill();
+                } else if (yVelocity === -1) { // Up
+                    ctx.beginPath();
+                    ctx.moveTo(segX + gridSize / 2, segY);
+                    ctx.lineTo(segX + gridSize / 2 - 3, segY - 8);
+                    ctx.lineTo(segX + gridSize / 2, segY - 6);
+                    ctx.lineTo(segX + gridSize / 2 + 3, segY - 8);
+                    ctx.closePath();
+                    ctx.fill();
+                } else if (yVelocity === 1) { // Down
+                    ctx.beginPath();
+                    ctx.moveTo(segX + gridSize / 2, segY + gridSize);
+                    ctx.lineTo(segX + gridSize / 2 - 3, segY + gridSize + 8);
+                    ctx.lineTo(segX + gridSize / 2, segY + gridSize + 6);
+                    ctx.lineTo(segX + gridSize / 2 + 3, segY + gridSize + 8);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+            }
+        } else {
+            // Body segment with scale pattern
+            ctx.fillRect(segX + 1, segY + 1, gridSize - 2, gridSize - 2);
+            
+            // Add scale pattern
+            ctx.fillStyle = snakePatterns[(i + 1) % 2];
+            
+            // Add a diamond-shaped scale in the center of each segment
+            ctx.beginPath();
+            ctx.moveTo(segX + gridSize / 2, segY + 4);
+            ctx.lineTo(segX + gridSize - 4, segY + gridSize / 2);
+            ctx.lineTo(segX + gridSize / 2, segY + gridSize - 4);
+            ctx.lineTo(segX + 4, segY + gridSize / 2);
+            ctx.closePath();
             ctx.fill();
         }
     }

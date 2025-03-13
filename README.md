@@ -18,7 +18,7 @@ You can play the game in two ways:
 - Eat the red food to grow longer and earn points
 - Avoid running into your own tail
 - The game ends when you collide with your own body
-- The snake can pass through walls and appear on the opposite side
+- Game ends when snake hits walls or itself
 
 ## Features
 
