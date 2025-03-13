@@ -132,8 +132,21 @@ button:hover {
     background-color: #388E3C;
 }
 
-#start {
+.button-group {
+    display: flex;
+    gap: 10px;
+}
+
+#start, #randomize {
     padding: 10px 20px;
+}
+
+#randomize {
+    background-color: #FF9800;
+}
+
+#randomize:hover {
+    background-color: #F57C00;
 }
 
 .mobile-controls {

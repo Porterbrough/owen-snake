@@ -13,7 +13,9 @@ const speedOptions = {
 };
 let appleCount = 1; // Default number of apples
 let movingApples = false; // Whether apples move around
+let attractApples = false; // Whether apples are attracted to the snake head
 let backgroundColor = '#e8f5e9'; // Default background color
+let selectedFruit = 'apple'; // Default fruit type
 
 // Game elements
 let snake = [];
@@ -35,6 +37,40 @@ const snakeColorOptions = [
     { base: '#00BCD4', scales: '#0097A7', head: '#0097A7' }  // Cyan
 ];
 let currentSnakeColorIndex = 0;
+
+// Fruit options
+const fruitOptions = {
+    apple: {
+        color: '#FF0000',
+        stemColor: '#4E342E',
+        leafColor: '#4CAF50',
+        name: 'Apple'
+    },
+    orange: {
+        color: '#FF9800',
+        stemColor: '#5D4037',
+        leafColor: '#388E3C',
+        name: 'Orange'
+    },
+    banana: {
+        color: '#FFEB3B',
+        stemColor: '#795548',
+        leafColor: '#43A047',
+        name: 'Banana'
+    },
+    strawberry: {
+        color: '#E91E63',
+        stemColor: '#33691E',
+        leafColor: '#7CB342',
+        name: 'Strawberry'
+    },
+    grape: {
+        color: '#9C27B0',
+        stemColor: '#33691E',
+        leafColor: '#7CB342',
+        name: 'Grape'
+    }
+};
 
 // Create snake texture images
 function createSnakeTextures() {
@@ -156,12 +192,18 @@ function initGame() {
     // Check if moving apples is enabled
     movingApples = document.getElementById('moving-apples').checked;
     
+    // Check if attracted apples is enabled
+    attractApples = document.getElementById('attract-apples').checked;
+    
     // Get speed from selector
     const speedSetting = document.getElementById('speed-select').value;
     speed = speedOptions[speedSetting];
     
     // Get background color
     backgroundColor = document.getElementById('bg-color').value || '#e8f5e9';
+    
+    // Get selected fruit
+    selectedFruit = document.getElementById('fruit-select').value || 'apple';
     
     // Create initial snake (3 segments)
     snake[0] = { x: 10, y: 10 };
@@ -256,30 +298,95 @@ function updateFoodPositions(deltaTime) {
     if (!movingApples) return;
     
     for (let i = 0; i < foods.length; i++) {
-        // Update fractional positions
-        foods[i].xFrac += foods[i].xVel * deltaTime;
-        foods[i].yFrac += foods[i].yVel * deltaTime;
+        const food = foods[i];
+        let newXFrac = food.xFrac;
+        let newYFrac = food.yFrac;
         
-        // Bounce off walls
-        if (foods[i].xFrac < 0) {
-            foods[i].xFrac = 0;
-            foods[i].xVel = -foods[i].xVel;
-        } else if (foods[i].xFrac > tileCount - 1) {
-            foods[i].xFrac = tileCount - 1;
-            foods[i].xVel = -foods[i].xVel;
+        // Apply apple movement based on mode
+        if (attractApples && snake.length > 0) {
+            // Get snake head position for attraction
+            const headX = snake[0].x;
+            const headY = snake[0].y;
+            
+            // Calculate direction to snake head
+            const dirX = headX - food.xFrac;
+            const dirY = headY - food.yFrac;
+            
+            // Normalize and scale by attraction strength
+            const length = Math.sqrt(dirX * dirX + dirY * dirY);
+            if (length > 0) {
+                const attractionStrength = 0.03;
+                newXFrac += (dirX / length) * attractionStrength * deltaTime;
+                newYFrac += (dirY / length) * attractionStrength * deltaTime;
+            }
+        } else {
+            // Standard movement
+            newXFrac += food.xVel * deltaTime;
+            newYFrac += food.yVel * deltaTime;
         }
         
-        if (foods[i].yFrac < 0) {
-            foods[i].yFrac = 0;
-            foods[i].yVel = -foods[i].yVel;
-        } else if (foods[i].yFrac > tileCount - 1) {
-            foods[i].yFrac = tileCount - 1;
-            foods[i].yVel = -foods[i].yVel;
+        // Check collision with snake body (except head)
+        let collisionWithBody = false;
+        for (let j = 1; j < snake.length; j++) {
+            // Use a larger collision radius for visual bouncing (0.7 instead of 0.5)
+            const snakeSegX = snake[j].x;
+            const snakeSegY = snake[j].y;
+            const dx = newXFrac - snakeSegX;
+            const dy = newYFrac - snakeSegY;
+            const distanceSquared = dx * dx + dy * dy;
+            
+            if (distanceSquared < 0.7 * 0.7) {
+                collisionWithBody = true;
+                
+                // Calculate bounce direction (away from snake segment)
+                const bounceX = food.xFrac - snakeSegX;
+                const bounceY = food.yFrac - snakeSegY;
+                const bounceMagnitude = Math.sqrt(bounceX * bounceX + bounceY * bounceY);
+                
+                if (bounceMagnitude > 0) {
+                    // Normalize and apply bounce velocity
+                    food.xVel = bounceX / bounceMagnitude * 0.15;
+                    food.yVel = bounceY / bounceMagnitude * 0.15;
+                } else {
+                    // Random bounce if directly on top (shouldn't normally happen)
+                    const angle = Math.random() * Math.PI * 2;
+                    food.xVel = Math.cos(angle) * 0.15;
+                    food.yVel = Math.sin(angle) * 0.15;
+                }
+                
+                // Apply bounce
+                newXFrac = food.xFrac + food.xVel * deltaTime * 2;
+                newYFrac = food.yFrac + food.yVel * deltaTime * 2;
+                break;
+            }
+        }
+        
+        // Update position if no collision with snake body
+        if (!collisionWithBody) {
+            food.xFrac = newXFrac;
+            food.yFrac = newYFrac;
+        }
+        
+        // Bounce off walls
+        if (food.xFrac < 0) {
+            food.xFrac = 0;
+            food.xVel = -food.xVel;
+        } else if (food.xFrac > tileCount - 1) {
+            food.xFrac = tileCount - 1;
+            food.xVel = -food.xVel;
+        }
+        
+        if (food.yFrac < 0) {
+            food.yFrac = 0;
+            food.yVel = -food.yVel;
+        } else if (food.yFrac > tileCount - 1) {
+            food.yFrac = tileCount - 1;
+            food.yVel = -food.yVel;
         }
         
         // Update integer coordinates
-        foods[i].x = Math.floor(foods[i].xFrac);
-        foods[i].y = Math.floor(foods[i].yFrac);
+        food.x = Math.floor(food.xFrac);
+        food.y = Math.floor(food.yFrac);
     }
 }
 
@@ -453,38 +560,159 @@ function drawGame() {
         ctx.stroke();
     }
     
-    // Draw all apples
+    // Draw all fruits
     for (let i = 0; i < foods.length; i++) {
         // Use fractional positions for smoother animation if moving
-        const fractX = movingApples ? foods[i].xFrac : foods[i].x;
-        const fractY = movingApples ? foods[i].yFrac : foods[i].y;
+        const fractX = foods[i].xFrac;
+        const fractY = foods[i].yFrac;
         
-        const appleX = fractX * gridSize + gridSize / 2;
-        const appleY = fractY * gridSize + gridSize / 2;
-        const appleRadius = gridSize / 2 - 2;
+        const fruitX = fractX * gridSize + gridSize / 2;
+        const fruitY = fractY * gridSize + gridSize / 2;
+        const fruitRadius = gridSize / 2 - 2;
         
-        // Apple body
-        ctx.fillStyle = '#FF0000';
-        ctx.beginPath();
-        ctx.arc(appleX, appleY, appleRadius, 0, Math.PI * 2);
-        ctx.fill();
+        const fruit = fruitOptions[selectedFruit];
         
-        // Apple stem
-        ctx.fillStyle = '#4E342E';
-        ctx.beginPath();
-        ctx.fillRect(appleX - 2, appleY - appleRadius - 3, 3, 5);
-        
-        // Apple shine
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-        ctx.beginPath();
-        ctx.arc(appleX - appleRadius/3, appleY - appleRadius/3, appleRadius/4, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // Apple leaf
-        ctx.fillStyle = '#4CAF50';
-        ctx.beginPath();
-        ctx.ellipse(appleX + 3, appleY - appleRadius - 1, 4, 2, Math.PI / 4, 0, Math.PI * 2);
-        ctx.fill();
+        if (selectedFruit === 'banana') {
+            // Draw banana (curved shape)
+            ctx.fillStyle = fruit.color;
+            ctx.save();
+            ctx.translate(fruitX, fruitY);
+            ctx.rotate(Math.PI / 4);
+            
+            // Banana body
+            ctx.beginPath();
+            ctx.moveTo(-fruitRadius, 0);
+            ctx.quadraticCurveTo(0, -fruitRadius * 1.5, fruitRadius, 0);
+            ctx.quadraticCurveTo(0, fruitRadius / 1.5, -fruitRadius, 0);
+            ctx.fill();
+            
+            // Banana stem
+            ctx.fillStyle = fruit.stemColor;
+            ctx.beginPath();
+            ctx.fillRect(fruitRadius - 3, -3, 5, 3);
+            
+            ctx.restore();
+        } else if (selectedFruit === 'strawberry') {
+            // Draw strawberry (heart-like shape with seeds)
+            ctx.fillStyle = fruit.color;
+            ctx.save();
+            ctx.translate(fruitX, fruitY);
+            
+            // Strawberry body
+            ctx.beginPath();
+            ctx.moveTo(0, fruitRadius);
+            ctx.bezierCurveTo(fruitRadius, fruitRadius/2, fruitRadius, -fruitRadius/2, 0, -fruitRadius);
+            ctx.bezierCurveTo(-fruitRadius, -fruitRadius/2, -fruitRadius, fruitRadius/2, 0, fruitRadius);
+            ctx.fill();
+            
+            // Strawberry seeds
+            ctx.fillStyle = '#FFEB3B';
+            for (let s = 0; s < 8; s++) {
+                const angle = s * Math.PI / 4;
+                const seedX = Math.cos(angle) * fruitRadius * 0.6;
+                const seedY = Math.sin(angle) * fruitRadius * 0.6;
+                ctx.beginPath();
+                ctx.ellipse(seedX, seedY, 1.5, 1, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            // Strawberry stem
+            ctx.fillStyle = fruit.stemColor;
+            ctx.beginPath();
+            ctx.fillRect(-3, -fruitRadius - 3, 6, 4);
+            
+            // Strawberry leaf
+            ctx.fillStyle = fruit.leafColor;
+            ctx.beginPath();
+            ctx.moveTo(0, -fruitRadius - 1);
+            ctx.lineTo(-5, -fruitRadius - 5);
+            ctx.lineTo(0, -fruitRadius - 7);
+            ctx.lineTo(5, -fruitRadius - 5);
+            ctx.closePath();
+            ctx.fill();
+            
+            ctx.restore();
+        } else if (selectedFruit === 'grape') {
+            // Draw grape (cluster of small circles)
+            ctx.fillStyle = fruit.color;
+            
+            // Main grape
+            ctx.beginPath();
+            ctx.arc(fruitX, fruitY, fruitRadius * 0.7, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Additional grapes in cluster
+            for (let g = 0; g < 5; g++) {
+                const angle = g * Math.PI / 2.5;
+                const grapeX = fruitX + Math.cos(angle) * fruitRadius * 0.7;
+                const grapeY = fruitY + Math.sin(angle) * fruitRadius * 0.7;
+                ctx.beginPath();
+                ctx.arc(grapeX, grapeY, fruitRadius * 0.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            // Grape stem
+            ctx.fillStyle = fruit.stemColor;
+            ctx.beginPath();
+            ctx.fillRect(fruitX - 1, fruitY - fruitRadius - 3, 2, 5);
+            
+            // Grape leaf
+            ctx.fillStyle = fruit.leafColor;
+            ctx.beginPath();
+            ctx.ellipse(fruitX + 3, fruitY - fruitRadius - 1, 4, 2, Math.PI / 4, 0, Math.PI * 2);
+            ctx.fill();
+        } else if (selectedFruit === 'orange') {
+            // Draw orange (circle with texture)
+            ctx.fillStyle = fruit.color;
+            ctx.beginPath();
+            ctx.arc(fruitX, fruitY, fruitRadius, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Orange texture (segments)
+            ctx.strokeStyle = adjustColor(fruit.color, -20);
+            ctx.lineWidth = 0.5;
+            for (let s = 0; s < 8; s++) {
+                const angle = s * Math.PI / 4;
+                ctx.beginPath();
+                ctx.moveTo(fruitX, fruitY);
+                ctx.lineTo(fruitX + Math.cos(angle) * fruitRadius, fruitY + Math.sin(angle) * fruitRadius);
+                ctx.stroke();
+            }
+            
+            // Orange stem
+            ctx.fillStyle = fruit.stemColor;
+            ctx.beginPath();
+            ctx.fillRect(fruitX - 2, fruitY - fruitRadius - 2, 4, 3);
+            
+            // Orange leaf
+            ctx.fillStyle = fruit.leafColor;
+            ctx.beginPath();
+            ctx.ellipse(fruitX + 4, fruitY - fruitRadius - 1, 4, 2, Math.PI / 4, 0, Math.PI * 2);
+            ctx.fill();
+        } else {
+            // Default: Draw apple
+            ctx.fillStyle = fruit.color;
+            ctx.beginPath();
+            ctx.arc(fruitX, fruitY, fruitRadius, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Apple stem
+            ctx.fillStyle = fruit.stemColor;
+            ctx.beginPath();
+            ctx.fillRect(fruitX - 2, fruitY - fruitRadius - 3, 3, 5);
+            
+            // Apple shine
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.beginPath();
+            ctx.arc(fruitX - fruitRadius/3, fruitY - fruitRadius/3, fruitRadius/4, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Apple leaf
+            ctx.fillStyle = fruit.leafColor;
+            ctx.beginPath();
+            ctx.ellipse(fruitX + 3, fruitY - fruitRadius - 1, 4, 2, Math.PI / 4, 0, Math.PI * 2);
+            ctx.fill();
+        }
     }
     
     // Draw snake with texture
@@ -701,6 +929,33 @@ function adjustColor(color, amount) {
     return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 }
 
+// Function to randomize game settings
+function randomizeSettings() {
+    // Random apple count (1-10)
+    document.getElementById('apple-count').value = Math.floor(Math.random() * 10) + 1;
+    
+    // Random moving apples (50% chance)
+    document.getElementById('moving-apples').checked = Math.random() < 0.5;
+    
+    // Random attract apples (33% chance)
+    document.getElementById('attract-apples').checked = Math.random() < 0.33;
+    
+    // Random speed
+    const speeds = ['slow', 'normal', 'fast'];
+    document.getElementById('speed-select').value = speeds[Math.floor(Math.random() * speeds.length)];
+    
+    // Random background color
+    const randomColor = '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
+    document.getElementById('bg-color').value = randomColor;
+    
+    // Random fruit
+    const fruits = Object.keys(fruitOptions);
+    document.getElementById('fruit-select').value = fruits[Math.floor(Math.random() * fruits.length)];
+    
+    // Update display
+    drawGame();
+}
+
 // Event Listeners
 document.getElementById('start').addEventListener('click', function() {
     if (gameRunning && !gameOver) return;
@@ -719,6 +974,11 @@ document.getElementById('start').addEventListener('click', function() {
     
     // Start the game loop
     requestAnimationFrame(gameLoop);
+});
+
+// Randomize button
+document.getElementById('randomize').addEventListener('click', function() {
+    randomizeSettings();
 });
 
 // Keyboard controls

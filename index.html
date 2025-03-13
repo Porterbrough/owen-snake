@@ -34,6 +34,10 @@
                         <input type="checkbox" id="moving-apples">
                     </div>
                     <div class="apple-control">
+                        <label for="attract-apples">Attract Apples:</label>
+                        <input type="checkbox" id="attract-apples">
+                    </div>
+                    <div class="apple-control">
                         <label for="speed-select">Speed:</label>
                         <select id="speed-select">
                             <option value="slow">Slow</option>
@@ -42,11 +46,24 @@
                         </select>
                     </div>
                     <div class="apple-control">
+                        <label for="fruit-select">Fruit:</label>
+                        <select id="fruit-select">
+                            <option value="apple" selected>Apple</option>
+                            <option value="orange">Orange</option>
+                            <option value="banana">Banana</option>
+                            <option value="strawberry">Strawberry</option>
+                            <option value="grape">Grape</option>
+                        </select>
+                    </div>
+                    <div class="apple-control">
                         <label for="bg-color">Background:</label>
                         <input type="color" id="bg-color" value="#e8f5e9">
                     </div>
                 </div>
-                <button id="start">Start Game</button>
+                <div class="button-group">
+                    <button id="start">Start Game</button>
+                    <button id="randomize">Randomize</button>
+                </div>
             </div>
             
             <div class="mobile-controls">
