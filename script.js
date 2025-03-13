@@ -16,6 +16,7 @@ let movingApples = false; // Whether apples move around
 let attractApples = false; // Whether apples are attracted to the snake head
 let backgroundColor = '#e8f5e9'; // Default background color
 let selectedFruit = 'apple'; // Default fruit type
+let invincibleMode = false; // Whether the snake is invincible (immune to collisions)
 const gameOverDelay = 2000; // Delay before showing game over screen (in milliseconds)
 
 // Game elements
@@ -203,6 +204,9 @@ function initGame() {
     
     // Check if attracted apples is enabled
     attractApples = document.getElementById('attract-apples').checked;
+    
+    // Check if invincible mode is enabled
+    invincibleMode = document.getElementById('invincible-mode').checked;
     
     // Get speed from selector
     const speedSetting = document.getElementById('speed-select').value;
@@ -497,18 +501,14 @@ function updateGame() {
     
     // Check for wall collision
     if (headX < 0 || headX >= tileCount || headY < 0 || headY >= tileCount) {
-        if (!collisionDetected) {
-            collisionDetected = true;
-            collisionTimestamp = Date.now();
-            deathPositionX = headX;
-            deathPositionY = headY;
-        }
-        return;
-    }
-    
-    // Check for self collision
-    for (let i = 1; i < snake.length; i++) {
-        if (headX === snake[i].x && headY === snake[i].y) {
+        if (invincibleMode) {
+            // Wrap around to the opposite side
+            if (headX < 0) headX = tileCount - 1;
+            else if (headX >= tileCount) headX = 0;
+            if (headY < 0) headY = tileCount - 1;
+            else if (headY >= tileCount) headY = 0;
+        } else {
+            // Normal collision handling
             if (!collisionDetected) {
                 collisionDetected = true;
                 collisionTimestamp = Date.now();
@@ -516,6 +516,25 @@ function updateGame() {
                 deathPositionY = headY;
             }
             return;
+        }
+    }
+    
+    // Check for self collision
+    for (let i = 1; i < snake.length; i++) {
+        if (headX === snake[i].x && headY === snake[i].y) {
+            if (invincibleMode) {
+                // In invincible mode, just pass through self
+                // No special handling needed, continue game
+            } else {
+                // Normal collision handling
+                if (!collisionDetected) {
+                    collisionDetected = true;
+                    collisionTimestamp = Date.now();
+                    deathPositionX = headX;
+                    deathPositionY = headY;
+                }
+                return;
+            }
         }
     }
     
@@ -825,6 +844,26 @@ function drawGame() {
             ctx.strokeStyle = gradient;
         }
         
+        // Draw invincibility visual effect
+        if (invincibleMode) {
+            // Draw glowing aura around snake
+            ctx.shadowColor = 'gold';
+            ctx.shadowBlur = 10;
+            
+            // Add pulsing effect
+            const pulseAmount = Math.sin(Date.now() / 200) * 0.5 + 1.5;
+            ctx.lineWidth = snakeWidth * pulseAmount;
+            
+            // Add second outline
+            ctx.globalAlpha = 0.3;
+            ctx.stroke(path);
+            
+            // Reset for main stroke
+            ctx.globalAlpha = 1;
+            ctx.lineWidth = snakeWidth;
+            ctx.shadowBlur = 5;
+        }
+        
         ctx.stroke(path);
         ctx.restore();
         
@@ -845,6 +884,23 @@ function drawGame() {
         
         // Draw snake head
         const headSize = gridSize + (4 * growthFactor); // Head slightly larger than body
+        
+        // Apply invincible effect to head if in invincible mode
+        if (invincibleMode) {
+            ctx.shadowColor = 'gold';
+            ctx.shadowBlur = 10;
+            
+            // Add crown for invincible mode
+            ctx.fillStyle = 'gold';
+            ctx.beginPath();
+            ctx.moveTo(-headSize/3, -headSize/2 - 5);
+            ctx.lineTo(-headSize/6, -headSize/2 - 12);
+            ctx.lineTo(0, -headSize/2 - 5);
+            ctx.lineTo(headSize/6, -headSize/2 - 12);
+            ctx.lineTo(headSize/3, -headSize/2 - 5);
+            ctx.closePath();
+            ctx.fill();
+        }
         
         // Use snake head image if loaded, otherwise draw a green head
         if (snakeHeadImage.complete && snakeHeadImage.naturalWidth > 0) {
@@ -883,7 +939,7 @@ function drawGame() {
             ctx.fill();
             
             // Pupils
-            ctx.fillStyle = 'black';
+            ctx.fillStyle = invincibleMode ? 'gold' : 'black';
             ctx.beginPath();
             ctx.arc(eyeSize/2, -eyeOffset, eyeSize/2, 0, Math.PI * 2);
             ctx.fill();
@@ -891,6 +947,15 @@ function drawGame() {
             ctx.beginPath();
             ctx.arc(eyeSize/2, eyeOffset, eyeSize/2, 0, Math.PI * 2);
             ctx.fill();
+        }
+        
+        // Add sunglasses for invincible mode if using image
+        if (invincibleMode && snakeHeadImage.complete && snakeHeadImage.naturalWidth > 0) {
+            // Draw cool sunglasses
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.beginPath();
+            ctx.fillRect(-headSize/6, -headSize/4 - headSize/12, headSize/3, headSize/6);
+            ctx.fillRect(-headSize/6, headSize/4 - headSize/12, headSize/3, headSize/6);
         }
         
         // Draw tongue occasionally
@@ -1036,6 +1101,9 @@ function randomizeSettings() {
     // Random fruit
     const fruits = Object.keys(fruitOptions);
     document.getElementById('fruit-select').value = fruits[Math.floor(Math.random() * fruits.length)];
+    
+    // Note: We deliberately do NOT randomize invincible mode
+    // as it should be manually toggled by the player
     
     // Update display
     drawGame();
