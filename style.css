@@ -64,9 +64,18 @@ canvas {
 
 .game-options {
     display: flex;
+    flex-direction: column;
     align-items: center;
     gap: 15px;
     margin-bottom: 15px;
+}
+
+.controls-group {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 15px;
+    margin-bottom: 5px;
 }
 
 .apple-control {

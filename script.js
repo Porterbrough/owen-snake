@@ -7,12 +7,15 @@ const gridSize = 20;
 const tileCount = canvas.width / gridSize;
 let speed = 7;
 let appleCount = 1; // Default number of apples
+let movingApples = false; // Whether apples move around
 
 // Game elements
 let snake = [];
 let foods = []; // Array to hold multiple food items
 let score = 0;
 let highScore = localStorage.getItem('highScore') || 0; // Load high score from local storage
+let lastFrameTime = 0; // For frame-independent movement
+const FPS = 60; // Target frames per second
 
 // Direction and game state
 let xVelocity = 0;
@@ -39,6 +42,9 @@ function initGame() {
     appleCount = Math.min(Math.max(appleCount, 1), 10);
     document.getElementById('apple-count').value = appleCount;
     
+    // Check if moving apples is enabled
+    movingApples = document.getElementById('moving-apples').checked;
+    
     // Create initial snake (3 segments)
     snake[0] = { x: 10, y: 10 };
     snake[1] = { x: 9, y: 10 };
@@ -53,15 +59,25 @@ function initGame() {
 }
 
 // Place food at random position
-function placeFood() {
-    // Clear the foods array
-    foods = [];
+function placeFood(count = appleCount) {
+    // If we're starting the game, clear the foods array
+    if (count === appleCount) {
+        foods = [];
+    }
+    
+    // Calculate how many apples we need to add
+    const applesNeeded = count - foods.length;
     
     // Add the requested number of food items
-    for (let f = 0; f < appleCount; f++) {
+    for (let f = 0; f < applesNeeded; f++) {
         let newFood = {
             x: Math.floor(Math.random() * tileCount),
-            y: Math.floor(Math.random() * tileCount)
+            y: Math.floor(Math.random() * tileCount),
+            // For moving apples, add velocity and fractional position
+            xFrac: Math.floor(Math.random() * tileCount),
+            yFrac: Math.floor(Math.random() * tileCount),
+            xVel: (Math.random() * 0.1 - 0.05), // Random small x velocity
+            yVel: (Math.random() * 0.1 - 0.05)  // Random small y velocity
         };
         
         // Check if food spawned on snake body or other food
@@ -71,7 +87,8 @@ function placeFood() {
             
             // Check collision with snake
             for (let i = 0; i < snake.length; i++) {
-                if (snake[i].x === newFood.x && snake[i].y === newFood.y) {
+                if (snake[i].x === Math.floor(newFood.xFrac) && 
+                    snake[i].y === Math.floor(newFood.yFrac)) {
                     validPosition = false;
                     break;
                 }
@@ -79,7 +96,8 @@ function placeFood() {
             
             // Check collision with other foods
             for (let i = 0; i < foods.length; i++) {
-                if (foods[i].x === newFood.x && foods[i].y === newFood.y) {
+                if (Math.floor(foods[i].xFrac) === Math.floor(newFood.xFrac) && 
+                    Math.floor(foods[i].yFrac) === Math.floor(newFood.yFrac)) {
                     validPosition = false;
                     break;
                 }
@@ -88,26 +106,84 @@ function placeFood() {
             if (!validPosition) {
                 newFood = {
                     x: Math.floor(Math.random() * tileCount),
-                    y: Math.floor(Math.random() * tileCount)
+                    y: Math.floor(Math.random() * tileCount),
+                    xFrac: Math.floor(Math.random() * tileCount),
+                    yFrac: Math.floor(Math.random() * tileCount),
+                    xVel: (Math.random() * 0.1 - 0.05),
+                    yVel: (Math.random() * 0.1 - 0.05)
                 };
             }
         }
+        
+        // Set integer coordinates based on fractional position
+        newFood.x = Math.floor(newFood.xFrac);
+        newFood.y = Math.floor(newFood.yFrac);
         
         foods.push(newFood);
     }
 }
 
+// Update food positions if moving apples are enabled
+function updateFoodPositions(deltaTime) {
+    if (!movingApples) return;
+    
+    for (let i = 0; i < foods.length; i++) {
+        // Update fractional positions
+        foods[i].xFrac += foods[i].xVel * deltaTime;
+        foods[i].yFrac += foods[i].yVel * deltaTime;
+        
+        // Bounce off walls
+        if (foods[i].xFrac < 0) {
+            foods[i].xFrac = 0;
+            foods[i].xVel = -foods[i].xVel;
+        } else if (foods[i].xFrac > tileCount - 1) {
+            foods[i].xFrac = tileCount - 1;
+            foods[i].xVel = -foods[i].xVel;
+        }
+        
+        if (foods[i].yFrac < 0) {
+            foods[i].yFrac = 0;
+            foods[i].yVel = -foods[i].yVel;
+        } else if (foods[i].yFrac > tileCount - 1) {
+            foods[i].yFrac = tileCount - 1;
+            foods[i].yVel = -foods[i].yVel;
+        }
+        
+        // Update integer coordinates
+        foods[i].x = Math.floor(foods[i].xFrac);
+        foods[i].y = Math.floor(foods[i].yFrac);
+    }
+}
+
 // Game loop
-function gameLoop() {
+function gameLoop(timestamp) {
     if (!gameRunning) return;
     
-    setTimeout(function() {
-        requestAnimationFrame(gameLoop);
-        if (!gameOver) {
+    // Calculate delta time for smooth animation
+    if (!lastFrameTime) lastFrameTime = timestamp;
+    const deltaTime = (timestamp - lastFrameTime) / (1000 / FPS); // Convert to frame time
+    lastFrameTime = timestamp;
+    
+    // Accumulator for snake update timing
+    if (!gameLoop.accumulator) gameLoop.accumulator = 0;
+    gameLoop.accumulator += deltaTime;
+    
+    if (!gameOver) {
+        // Always update food positions for smooth animation
+        updateFoodPositions(deltaTime);
+        
+        // Update snake position based on speed
+        const updateRate = FPS / speed;
+        while (gameLoop.accumulator >= updateRate) {
             updateGame();
-            drawGame();
+            gameLoop.accumulator -= updateRate;
         }
-    }, 1000 / speed);
+        
+        // Always draw
+        drawGame();
+    }
+    
+    requestAnimationFrame(gameLoop);
 }
 
 // Update game state
@@ -155,10 +231,8 @@ function updateGame() {
                 document.getElementById('high-score').textContent = highScore;
             }
             
-            // Place a new food if all are eaten
-            if (foods.length === 0) {
-                placeFood();
-            }
+            // Always place a new food immediately when one is eaten
+            placeFood(1); // Place exactly one new food
             
             // Increase speed every 5 points
             if (score % 5 === 0 && speed < 15) {
@@ -204,8 +278,12 @@ function drawGame() {
     
     // Draw all apples
     for (let i = 0; i < foods.length; i++) {
-        const appleX = foods[i].x * gridSize + gridSize / 2;
-        const appleY = foods[i].y * gridSize + gridSize / 2;
+        // Use fractional positions for smoother animation if moving
+        const fractX = movingApples ? foods[i].xFrac : foods[i].x;
+        const fractY = movingApples ? foods[i].yFrac : foods[i].y;
+        
+        const appleX = fractX * gridSize + gridSize / 2;
+        const appleY = fractY * gridSize + gridSize / 2;
         const appleRadius = gridSize / 2 - 2;
         
         // Apple body
@@ -494,13 +572,20 @@ function drawGame() {
 document.getElementById('start').addEventListener('click', function() {
     if (gameRunning && !gameOver) return;
     
+    // Reset timing variables
+    lastFrameTime = 0;
+    gameLoop.accumulator = 0;
+    
+    // Initialize the game
     initGame();
     gameRunning = true;
-    gameLoop();
     
     // Set initial direction to right
     xVelocity = 1;
     yVelocity = 0;
+    
+    // Start the game loop
+    requestAnimationFrame(gameLoop);
 });
 
 // Keyboard controls

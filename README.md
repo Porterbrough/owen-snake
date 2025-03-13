@@ -27,6 +27,9 @@ You can play the game in two ways:
 - Visual grid for better navigation
 - Realistic snake with connected body segments
 - Customizable number of apples (1-10)
+- Option for moving apples that glide around the screen
+- New apples appear immediately when one is eaten
+- Smooth snake movement with frame-independent animation
 - High score tracking with local storage
 - Realistic apples with stems and leaves
 - Snake eyes with pupils that follow movement direction
