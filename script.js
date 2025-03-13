@@ -16,6 +16,7 @@ let movingApples = false; // Whether apples move around
 let attractApples = false; // Whether apples are attracted to the snake head
 let backgroundColor = '#e8f5e9'; // Default background color
 let selectedFruit = 'apple'; // Default fruit type
+const gameOverDelay = 2000; // Delay before showing game over screen (in milliseconds)
 
 // Game elements
 let snake = [];
@@ -166,6 +167,10 @@ let lastXVelocity = 0;
 let lastYVelocity = 0;
 let gameRunning = false;
 let gameOver = false;
+let collisionDetected = false;
+let collisionTimestamp = 0;
+let deathPositionX = 0;
+let deathPositionY = 0;
 
 // Initialize game
 function initGame() {
@@ -178,6 +183,10 @@ function initGame() {
     lastXVelocity = 0;
     lastYVelocity = 0;
     gameOver = false;
+    collisionDetected = false;
+    collisionTimestamp = 0;
+    deathPositionX = 0;
+    deathPositionY = 0;
     
     // Reset snake color to the default (green)
     currentSnakeColorIndex = 0;
@@ -403,26 +412,41 @@ function gameLoop(timestamp) {
     if (!gameLoop.accumulator) gameLoop.accumulator = 0;
     gameLoop.accumulator += deltaTime;
     
+    // Check if collision was detected and enough time has passed
+    if (collisionDetected && !gameOver) {
+        const currentTime = Date.now();
+        if (currentTime - collisionTimestamp >= gameOverDelay) {
+            // Now we can set game over
+            gameOver = true;
+        }
+    }
+    
     if (!gameOver) {
         // Always update food positions for smooth animation
         updateFoodPositions(deltaTime);
         
-        // Update snake position based on speed
-        const updateRate = FPS / speed;
-        let updated = false;
-        
-        while (gameLoop.accumulator >= updateRate) {
-            updateGame();
-            gameLoop.accumulator -= updateRate;
-            updated = true;
-        }
-        
-        // Update snake position interpolation for smooth movement
-        if (updated && snake.length > 0) {
-            updateSnakeInterpolation(gameLoop.accumulator / updateRate);
+        // Only update the game if there's no collision
+        if (!collisionDetected) {
+            // Update snake position based on speed
+            const updateRate = FPS / speed;
+            let updated = false;
+            
+            while (gameLoop.accumulator >= updateRate) {
+                updateGame();
+                gameLoop.accumulator -= updateRate;
+                updated = true;
+            }
+            
+            // Update snake position interpolation for smooth movement
+            if (updated && snake.length > 0) {
+                updateSnakeInterpolation(gameLoop.accumulator / updateRate);
+            }
         }
         
         // Always draw
+        drawGame();
+    } else {
+        // Draw game over screen
         drawGame();
     }
     
@@ -473,14 +497,24 @@ function updateGame() {
     
     // Check for wall collision
     if (headX < 0 || headX >= tileCount || headY < 0 || headY >= tileCount) {
-        gameOver = true;
+        if (!collisionDetected) {
+            collisionDetected = true;
+            collisionTimestamp = Date.now();
+            deathPositionX = headX;
+            deathPositionY = headY;
+        }
         return;
     }
     
     // Check for self collision
     for (let i = 1; i < snake.length; i++) {
         if (headX === snake[i].x && headY === snake[i].y) {
-            gameOver = true;
+            if (!collisionDetected) {
+                collisionDetected = true;
+                collisionTimestamp = Date.now();
+                deathPositionX = headX;
+                deathPositionY = headY;
+            }
             return;
         }
     }
@@ -875,6 +909,57 @@ function drawGame() {
         }
         
         ctx.restore();
+    }
+    
+    // Handle collision or game over state
+    if (collisionDetected) {
+        // If collision detected but game over not shown yet
+        if (!gameOver) {
+            // Draw a crash effect at the collision point
+            const crashX = (deathPositionX < 0 ? 0 : (deathPositionX >= tileCount ? tileCount - 1 : deathPositionX)) * gridSize + gridSize/2;
+            const crashY = (deathPositionY < 0 ? 0 : (deathPositionY >= tileCount ? tileCount - 1 : deathPositionY)) * gridSize + gridSize/2;
+            
+            // Calculate how much time has passed since collision (0 to 1 scale)
+            const progress = Math.min(1, (Date.now() - collisionTimestamp) / gameOverDelay);
+            
+            // Draw expanding crash circle
+            const maxRadius = gridSize * 5;
+            const radius = maxRadius * progress;
+            
+            // Draw shockwave
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(crashX, crashY, radius, 0, Math.PI * 2);
+            ctx.strokeStyle = `rgba(255, 0, 0, ${1 - progress})`;
+            ctx.lineWidth = gridSize / 4;
+            ctx.stroke();
+            
+            // Draw inner impact
+            ctx.beginPath();
+            ctx.arc(crashX, crashY, gridSize/2, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(255, 0, 0, ${1 - progress/2})`;
+            ctx.fill();
+            
+            // Draw some particles
+            for (let i = 0; i < 12; i++) {
+                const angle = i * Math.PI / 6;
+                const distance = radius * 0.7;
+                const particleX = crashX + Math.cos(angle) * distance;
+                const particleY = crashY + Math.sin(angle) * distance;
+                const particleSize = gridSize / 4 * (1 - progress);
+                
+                ctx.beginPath();
+                ctx.arc(particleX, particleY, particleSize, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 100, 0, ${1 - progress})`;
+                ctx.fill();
+            }
+            
+            ctx.restore();
+            
+            // Fade out the screen gradually
+            ctx.fillStyle = `rgba(0, 0, 0, ${progress * 0.5})`;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
     }
     
     // Draw game over message
